@@ -46,6 +46,8 @@ struct _NemoToolbarPriv {
     GtkWidget *up_button;
     GtkWidget *refresh_button;
     GtkWidget *home_button;
+    GtkWidget *split_button;
+    GtkWidget *sync_panes_to_next_button;
     GtkWidget *computer_button;
     GtkWidget *toggle_location_button;
     GtkWidget *open_terminal_button;
@@ -149,6 +151,12 @@ toolbar_update_appearance (NemoToolbar *self)
     if ( icon_toolbar == FALSE ) { gtk_widget_hide (widgetitem); }
     else {gtk_widget_show (GTK_WIDGET(widgetitem));}
 
+    // ===========================================================
+    // HACK by WS (25.04.2020) to insert split-view button (etc.) in toolbar
+    // ===========================================================
+    gtk_widget_show (GTK_WIDGET(self->priv->split_button));
+    gtk_widget_show (GTK_WIDGET(self->priv->sync_panes_to_next_button));
+
     widgetitem = self->priv->search_button;
     icon_toolbar = g_settings_get_boolean (nemo_preferences, NEMO_PREFERENCES_SHOW_SEARCH_ICON_TOOLBAR);
     if ( icon_toolbar == FALSE ) { gtk_widget_hide (widgetitem); }
@@ -193,8 +201,9 @@ toolbar_update_appearance (NemoToolbar *self)
         gtk_widget_show(GTK_WIDGET (self->priv->navigation_box));
     }
 
-    if (gtk_widget_get_visible(self->priv->home_button) == FALSE && 
-        gtk_widget_get_visible(self->priv->computer_button) == FALSE)
+    if ((gtk_widget_get_visible(self->priv->home_button) == FALSE && 
+         gtk_widget_get_visible(self->priv->computer_button) == FALSE)
+         && 0 ) // Hack by WS (04/2020): Should be always visible because of extra buttons
     {
         gtk_widget_hide(GTK_WIDGET (self->priv->location_box));
     } else {
@@ -343,6 +352,16 @@ nemo_toolbar_constructed (GObject *obj)
 
     self->priv->computer_button = toolbar_create_toolbutton (self, FALSE, NEMO_ACTION_COMPUTER);
     gtk_container_add (GTK_CONTAINER (box), self->priv->computer_button);
+
+    // ===========================================================
+    // HACK by WS (25.04.2020) to insert split-view button (etc.) in toolbar
+    // ===========================================================
+    self->priv->split_button = toolbar_create_toolbutton (self, TRUE, NEMO_ACTION_SHOW_HIDE_EXTRA_PANE);
+    gtk_container_add (GTK_CONTAINER (box), self->priv->split_button);
+
+    self->priv->sync_panes_to_next_button = toolbar_create_toolbutton (self, FALSE, "SplitViewSameLocationReverse");
+    gtk_container_add (GTK_CONTAINER (box), self->priv->sync_panes_to_next_button);
+    // ===========================================================
 
     gtk_style_context_add_class (gtk_widget_get_style_context (box), GTK_STYLE_CLASS_RAISED);
     gtk_style_context_add_class (gtk_widget_get_style_context (box), GTK_STYLE_CLASS_LINKED);
