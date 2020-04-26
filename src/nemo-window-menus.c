@@ -571,6 +571,32 @@ action_split_view_same_location_callback (GtkAction *action,
 	}
 }
 
+// ===========================================================
+// HACK by WS (26.04.2020)
+// - new action which copies current active location to other pane
+// ===========================================================
+static void
+action_split_view_same_location_reverse_callback (GtkAction *action,
+					  gpointer user_data)
+{
+	NemoWindow *window;
+	NemoWindowPane *next_pane;
+	GFile *location;
+
+	window = NEMO_WINDOW (user_data);
+	next_pane = nemo_window_get_next_pane (window);
+
+	if (!next_pane) {
+		return;
+	}
+	location = nemo_window_slot_get_location (nemo_window_get_active_slot (window));
+	if (location) {
+		nemo_window_slot_open_location (next_pane->active_slot,
+						    location, 0);
+		g_object_unref (location);
+	}
+}
+
 static void
 action_show_hide_sidebar_callback (GtkAction *action,
 				   gpointer user_data)
@@ -651,10 +677,17 @@ nemo_window_update_split_view_actions_sensitivity (NemoWindow *window)
 
 	/* switch to next pane */
 	action = gtk_action_group_get_action (action_group, "SplitViewNextPane");
+// ===========================================================
+// HACK by WS (25.04.2020) to enable this menu item for sure
+// --> however, hack disabled for now
+// ===========================================================
+	//gtk_action_set_sensitive (action, TRUE);
 	gtk_action_set_sensitive (action, have_multiple_panes);
 
 	/* same location */
 	action = gtk_action_group_get_action (action_group, "SplitViewSameLocation");
+	gtk_action_set_sensitive (action, have_multiple_panes && !next_pane_is_in_same_location);
+	action = gtk_action_group_get_action (action_group, "SplitViewSameLocationReverse");
 	gtk_action_set_sensitive (action, have_multiple_panes && !next_pane_is_in_same_location);
 
 	/* clean up */
@@ -1407,8 +1440,11 @@ static const GtkActionEntry main_entries[] = {
 				 "F6", N_("Move focus to the other pane in a split view window"),
 				 G_CALLBACK (action_split_view_switch_next_pane_callback) },
   /* name, stock id, label */  { "SplitViewSameLocation", NULL, N_("Sa_me Location as Other Pane"),
-				 NULL, N_("Go to the same location as in the extra pane"),
+				 "F7", N_("Go to the same location as in the extra pane"),
 				 G_CALLBACK (action_split_view_same_location_callback) },
+  /* name, stock id, label */  { "SplitViewSameLocationReverse", NULL, N_("Same Location for Other Pane"),
+				 "F8", N_("Go in the extra pane to the same location as in the active pane"),
+				 G_CALLBACK (action_split_view_same_location_reverse_callback) },
   /* name, stock id, label */  { "Add Bookmark", "bookmark-new-symbolic", N_("_Add Bookmark"),
                                  "<control>d", N_("Add a bookmark for the current location to this menu"),
                                  G_CALLBACK (action_add_bookmark_callback) },
@@ -1581,7 +1617,6 @@ nemo_window_create_toolbar_action_group (NemoWindow *window)
    	g_signal_connect (action, "activate",
    			  G_CALLBACK (action_home_callback), window);
    	gtk_action_group_add_action (action_group, action);
-
    	g_object_unref (action);
 
    	action = g_object_new (NEMO_TYPE_NAVIGATION_ACTION,
@@ -1597,6 +1632,23 @@ nemo_window_create_toolbar_action_group (NemoWindow *window)
    	gtk_action_group_add_action (action_group, action);
 
    	g_object_unref (action);
+
+// ===========================================================
+// HACK by WS (25.04.2020) to insert split-view button (etc.) in toolbar
+// ===========================================================
+    // re-use action created for main menu
+	action = gtk_action_group_get_action (nemo_window_get_main_action_group (window),
+					      NEMO_ACTION_SHOW_HIDE_EXTRA_PANE);
+    gtk_action_group_add_action (action_group, GTK_ACTION (action));
+    gtk_action_set_icon_name (GTK_ACTION (action), "view-dual-symbolic");
+    g_object_unref (action);
+
+	action = gtk_action_group_get_action (nemo_window_get_main_action_group (window),
+					      "SplitViewSameLocationReverse");
+    gtk_action_group_add_action (action_group, GTK_ACTION (action));
+    gtk_action_set_icon_name (GTK_ACTION (action), "network-transmit-receive-symbolic");
+    g_object_unref (action);
+// ===========================================================
 
     action = GTK_ACTION (gtk_toggle_action_new (NEMO_ACTION_TOGGLE_LOCATION,
                                                 _("Location"),
