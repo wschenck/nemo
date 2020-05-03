@@ -798,7 +798,18 @@ notebook_page_added_cb (GtkNotebook *notebook,
 	g_object_set_data (G_OBJECT (page), "dnd-window-slot",
 		   GINT_TO_POINTER (FALSE));
 
-	dummy_slot = g_list_nth_data (pane->slots, 0);
+	// HACK BY WS (03.05.2020): Transfer location from newly arrived slot to the default slot
+	//                          which was just created without location in case of DND
+	GFile *location = nemo_window_slot_get_location (g_list_nth_data (pane->slots, 1));
+	if (location) {
+		nemo_window_slot_open_location (g_list_nth_data (pane->slots, 0), location, 0);
+		g_object_unref (location);
+	}
+	nemo_window_set_active_slot (pane->window, g_list_nth_data (pane->slots, 0));
+
+	// HACK BY WS (03.05.2020): Delete newly arrived slot with number 1 instead of default
+	//                          slot with number 0
+	dummy_slot = g_list_nth_data (pane->slots, 1 /*0*/);
 	if (dummy_slot != NULL) {
 		nemo_window_pane_remove_slot_unsafe (
 			dummy_slot->pane, dummy_slot);

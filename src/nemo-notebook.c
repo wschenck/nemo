@@ -409,7 +409,7 @@ nemo_notebook_insert_page (GtkNotebook *gnotebook,
 	gtk_notebook_set_show_tabs (gnotebook,
 				    gtk_notebook_get_n_pages (gnotebook) > 1 ||
 					g_settings_get_boolean (nemo_preferences, NEMO_PREFERENCES_SHOW_TAB_AREA ));
-	gtk_notebook_set_tab_reorderable (gnotebook, tab_widget, TRUE);
+	//gtk_notebook_set_tab_reorderable (gnotebook, tab_widget, TRUE);
 
     // set detachable state depending on number of slots (a single slot
 	// should stay where it is)
@@ -419,6 +419,7 @@ nemo_notebook_insert_page (GtkNotebook *gnotebook,
 	{
 		GtkWidget *tab_widget_temp = gtk_notebook_get_nth_page (gnotebook, i);
 		gtk_notebook_set_tab_detachable (gnotebook, tab_widget_temp, num_pages > 1 );
+		gtk_notebook_set_tab_reorderable (gnotebook, tab_widget_temp, TRUE);
 		//g_object_unref( tab_widget_temp ); // NECCESSARY??? ==> NO!!!
 	}
     // print detachable state	
