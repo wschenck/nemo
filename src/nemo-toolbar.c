@@ -46,6 +46,7 @@ struct _NemoToolbarPriv {
     GtkWidget *up_button;
     GtkWidget *refresh_button;
     GtkWidget *home_button;
+    //GtkWidget *new_tab_button; // WS: Planned for additional "New Tab" button on toolbar
     GtkWidget *split_button;
     GtkWidget *sync_panes_to_next_button;
     GtkWidget *computer_button;

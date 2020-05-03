@@ -471,6 +471,15 @@ notebook_popup_menu_show (NemoWindowPane *pane,
 
 	notebook = NEMO_NOTEBOOK (pane->notebook);
 
+	// report detachable state at menu invocation
+	gint num_pages = gtk_notebook_get_n_pages (pane->notebook);
+	printf(">> [notebook_popup_menu_show] num_pages = %i\n", num_pages);
+	for( gint i = 0; i < num_pages; i++ )
+	{
+		GtkWidget *tab_widget_temp = gtk_notebook_get_nth_page (pane->notebook, i);
+		printf( ">> [notebook_popup_menu_show] >> Detachable: %i\n", gtk_notebook_get_tab_detachable (pane->notebook, tab_widget_temp) );
+	}
+
 	can_move_left = nemo_notebook_can_reorder_child_relative (
 		notebook, num_target_tab, -1);
 	can_move_right = nemo_notebook_can_reorder_child_relative (
@@ -578,6 +587,10 @@ notebook_button_press_cb (GtkWidget *widget,
 		} else {
 			gtk_notebook_set_current_page (GTK_NOTEBOOK (notebook),
 						       tab_clicked);
+			// WS: Single left-click on tab seems to be caught before this function
+			// (notebook_button_press_cb) because the following has no effect at all...
+			//nemo_window_pane_set_active (pane, TRUE);
+			//nemo_window_pane_grab_focus (pane);
 		}
 	}
 
@@ -632,18 +645,66 @@ notebook_page_removed_cb (GtkNotebook *notebook,
 	NemoWindowSlot *slot = NEMO_WINDOW_SLOT (page), *next_slot;
 	gboolean dnd_slot;
 
+	printf(">> [notebook_page_removed_cb] ENTER\n");
+
 	dnd_slot = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (slot), "dnd-window-slot"));
 	if (!dnd_slot) {
+		//nemo_window_manage_views_close_slot (slot);
+		//pane->slots = g_list_remove (pane->slots, slot);
 		return;
 	}
 
+	printf(">> [notebook_page_removed_cb] DND SECTION\n");
+
+	printf(">> [notebook_page_removed_cb] >> pane->active_slot = %p\n", pane->active_slot);
+	printf(">> [notebook_page_removed_cb] >> slot = %p\n", slot);
 	if (pane->active_slot == slot) {
+		printf(">> [notebook_page_removed_cb] SWITCH TO NEXT SLOT\n");
 		next_slot = get_next_or_previous_slot (pane);
+		printf(">> [notebook_page_removed_cb] >> next_slot = %p\n", next_slot);
 		nemo_window_set_active_slot (pane->window, next_slot);
 	}
 
+	// WS: The following line was so far not called when moving
+	//     slots between panes in existing windows
 	nemo_window_manage_views_close_slot (slot);
+	// WS: The following line was so far not called when moving
+	//     slots between panes in existing windows
+	//     (this step was carried out in notebook_page_added_cb)
 	pane->slots = g_list_remove (pane->slots, slot);
+
+	printf(">> [notebook_page_removed_cb] DND SECTION END && LEAVE\n");
+
+	// WS: The following if was so far not called when moving
+	//     slots between panes in existing windows
+	// if (pane->slots == NULL)
+	// {
+	// 	printf(">>>  Hui, no slots left, hihi...\n");
+
+	// 	/* If that was the last slot in the pane, close the pane or even the
+	// 		* whole window.
+	// 		*/
+	// 	NemoWindow* window = pane->window;
+	// 	if (nemo_window_split_view_showing (window)) {
+	// 		NemoWindowPane *new_pane;
+
+	// 		DEBUG ("Last slot removed from the pane %p, closing it", pane);
+	// 		nemo_window_close_pane (window, pane);
+
+	// 		new_pane = g_list_nth_data (window->details->panes, 0);
+
+	// 		if (new_pane->active_slot == NULL) {
+	// 			new_pane->active_slot = get_next_or_previous_slot (new_pane);
+	// 		}
+
+	// 		DEBUG ("Calling set_active_pane, new slot %p", new_pane->active_slot);
+	// 		nemo_window_set_active_pane (window, new_pane);
+	// 		nemo_window_update_show_hide_menu_items (window);
+	// 	} else {
+	// 		DEBUG ("Last slot removed from the last pane, close the window");
+	// 		nemo_window_close (window);
+	// 	}
+	// }
 }
 
 static void
@@ -657,17 +718,57 @@ notebook_page_added_cb (GtkNotebook *notebook,
 	NemoWindowSlot *dummy_slot;
 	gboolean dnd_slot;
 
+	printf(">> [notebook_page_added_cb] ENTER\n");
+
 	pane = NEMO_WINDOW_PANE (user_data);
 	slot = NEMO_WINDOW_SLOT (page);
 
+	printf(">> [notebook_page_added_cb] CONTINUE\n");
+
+	gboolean cleanup_later = FALSE;
+	NemoWindowPane *prev_pane = slot->pane;
+
 	//Slot has been dropped onto another pane (new window or tab bar of other window)
 	//So reassociate the pane if needed.
-	if (slot->pane != pane) {
-		slot->pane->slots = g_list_remove (slot->pane->slots, slot);
+	if (prev_pane != pane) {
+		// WS: Take care of source pane and window
+		//nemo_window_manage_views_close_slot (slot);
+		prev_pane->slots = g_list_remove (prev_pane->slots, slot);
+		cleanup_later = (prev_pane->slots == NULL);
+		// Take care of destination pane and window
 		slot->pane = pane;
 		pane->slots = g_list_append (pane->slots, slot);
 		g_signal_emit_by_name (slot, "changed-pane");
 		nemo_window_set_active_slot (nemo_window_slot_get_window (slot), slot);
+	}
+
+	if (cleanup_later && FALSE)
+	{
+		printf(">>>  Hui, no slots left, hihi...\n");
+
+		/* If that was the last slot in the pane, close the pane or even the
+			* whole window.
+			*/
+		NemoWindow* prev_window = prev_pane->window;
+		if (nemo_window_split_view_showing (prev_window)) {
+			NemoWindowPane *partner_of_prev_pane;
+
+			DEBUG ("Last slot removed from the pane %p, closing it", prev_pane);
+			nemo_window_close_pane (prev_window, prev_pane);
+
+			partner_of_prev_pane = g_list_nth_data (prev_window->details->panes, 0);
+
+			if (partner_of_prev_pane->active_slot == NULL) {
+				partner_of_prev_pane->active_slot = get_next_or_previous_slot (partner_of_prev_pane);
+			}
+
+			DEBUG ("Calling set_active_pane, new slot %p", partner_of_prev_pane->active_slot);
+			nemo_window_set_active_pane (prev_window, partner_of_prev_pane);
+			nemo_window_update_show_hide_menu_items (prev_window);
+		} else {
+			printf ("!!!! Last slot removed from the last pane, close the window\n");
+			nemo_window_close (prev_window);
+		}
 	}
 
 	dnd_slot = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (slot), "dnd-window-slot"));
@@ -676,6 +777,8 @@ notebook_page_added_cb (GtkNotebook *notebook,
 		//Slot does not come from dnd window creation.
 		return;
 	}
+
+	printf(">> [notebook_page_added_cb] DND SECTION\n");
 
 	g_object_set_data (G_OBJECT (page), "dnd-window-slot",
 		   GINT_TO_POINTER (FALSE));
@@ -688,6 +791,17 @@ notebook_page_added_cb (GtkNotebook *notebook,
 
 	gtk_widget_show (GTK_WIDGET (pane));
 	gtk_widget_show (GTK_WIDGET (pane->window));
+
+	// report detachable state
+	gint num_pages = gtk_notebook_get_n_pages (pane->notebook);
+	printf(">> [notebook_page_added_cb] num_pages = %i\n", num_pages);
+	for( gint i = 0; i < num_pages; i++ )
+	{
+		GtkWidget *tab_widget_temp = gtk_notebook_get_nth_page (pane->notebook, i);
+		printf( ">> [notebook_page_added_cb] >> Detachable: %i\n", gtk_notebook_get_tab_detachable (pane->notebook, tab_widget_temp) );
+	}
+
+	printf(">> [notebook_page_added_cb] DND SECTION END && LEAVE\n");
 }
 
 static GtkNotebook *
@@ -701,6 +815,8 @@ notebook_create_window_cb (GtkNotebook *notebook,
 	NemoWindow *new_window;
 	NemoWindowPane *new_pane;
 	NemoWindowSlot *slot;
+
+	printf(">> [notebook_create_window_cb] ENTER\n");
 
 	if (!NEMO_IS_WINDOW_SLOT (page)) {
 		return NULL;
@@ -717,6 +833,18 @@ notebook_create_window_cb (GtkNotebook *notebook,
 	gtk_window_set_position (GTK_WINDOW (new_window), GTK_WIN_POS_MOUSE);
 
 	new_pane = nemo_window_get_active_pane (new_window);
+
+	// report detachable state
+	gint num_pages = gtk_notebook_get_n_pages (new_pane->notebook);
+	printf(">> [notebook_create_window_cb] num_pages = %i\n", num_pages);
+	for( gint i = 0; i < num_pages; i++ )
+	{
+		GtkWidget *tab_widget_temp = gtk_notebook_get_nth_page (new_pane->notebook, i);
+		printf( ">> [notebook_create_window_cb] >> Detachable: %i\n", gtk_notebook_get_tab_detachable (new_pane->notebook, tab_widget_temp) );
+	}
+
+	printf(">> [notebook_create_window_cb] LEAVE\n");
+
 	return GTK_NOTEBOOK (new_pane->notebook);
 }
 
@@ -1135,6 +1263,8 @@ nemo_window_pane_close_slot (NemoWindowPane *pane,
 
 	DEBUG ("Requesting to remove slot %p from pane %p", slot, pane);
 
+	printf(">> [nemo_window_pane_close_slot] ENTER\n");
+
 	window = pane->window;
 	if (!window)
 		return;
@@ -1171,6 +1301,8 @@ nemo_window_pane_close_slot (NemoWindowPane *pane,
 			nemo_window_close (window);
 		}
 	}
+
+	printf(">> [nemo_window_pane_close_slot] LEAVE\n");
 }
 
 void
@@ -1211,6 +1343,8 @@ nemo_window_pane_remove_slot_unsafe (NemoWindowPane *pane,
 	int page_num;
 	GtkNotebook *notebook;
 
+	printf(">> [nemo_window_pane_remove_slot_unsafe] ENTER\n");
+
 	g_assert (NEMO_IS_WINDOW_SLOT (slot));
 	g_assert (NEMO_IS_WINDOW_PANE (slot->pane));
 
@@ -1234,10 +1368,22 @@ nemo_window_pane_remove_slot_unsafe (NemoWindowPane *pane,
 					   G_CALLBACK (notebook_switch_page_cb),
 					   pane);
 
-	gtk_notebook_set_show_tabs (notebook,
-				    gtk_notebook_get_n_pages (notebook) > 1 || 
-					g_settings_get_boolean (nemo_preferences, NEMO_PREFERENCES_SHOW_TAB_AREA ));
+	// WS: Most likely the following code lines can be safely removed
+	//gtk_notebook_set_show_tabs (notebook,
+	//			    gtk_notebook_get_n_pages (notebook) > 1 || 
+	//				g_settings_get_boolean (nemo_preferences, NEMO_PREFERENCES_SHOW_TAB_AREA ));
 	pane->slots = g_list_remove (pane->slots, slot);
+
+	// report detachable state
+	gint num_pages = gtk_notebook_get_n_pages (pane->notebook);
+	printf(">> [nemo_window_pane_remove_slot_unsafe] num_pages = %i\n", num_pages);
+	for( gint i = 0; i < num_pages; i++ )
+	{
+		GtkWidget *tab_widget_temp = gtk_notebook_get_nth_page (pane->notebook, i);
+		printf( ">> [nemo_window_pane_remove_slot_unsafe] >> Detachable: %i\n", gtk_notebook_get_tab_detachable (pane->notebook, tab_widget_temp) );
+	}
+
+	printf(">> [nemo_window_pane_remove_slot_unsafe] LEAVE\n");
 }
 
 NemoWindowSlot *

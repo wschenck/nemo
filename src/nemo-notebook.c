@@ -398,6 +398,8 @@ nemo_notebook_insert_page (GtkNotebook *gnotebook,
 {
 	g_assert (GTK_IS_WIDGET (tab_widget));
 
+	printf(">> [nemo_notebook_insert_page] ENTER\n");
+
 	position = GTK_NOTEBOOK_CLASS (nemo_notebook_parent_class)->insert_page (gnotebook,
 										     tab_widget,
 										     tab_label,
@@ -408,7 +410,25 @@ nemo_notebook_insert_page (GtkNotebook *gnotebook,
 				    gtk_notebook_get_n_pages (gnotebook) > 1 ||
 					g_settings_get_boolean (nemo_preferences, NEMO_PREFERENCES_SHOW_TAB_AREA ));
 	gtk_notebook_set_tab_reorderable (gnotebook, tab_widget, TRUE);
-	gtk_notebook_set_tab_detachable (gnotebook, tab_widget, TRUE);
+
+    // set detachable state depending on number of slots (a single slot
+	// should stay where it is)
+	gint num_pages = gtk_notebook_get_n_pages (gnotebook);
+	printf(">> [nemo_notebook_insert_page] num_pages = %i\n", num_pages);
+	for( gint i = 0; i < num_pages; i++ )
+	{
+		GtkWidget *tab_widget_temp = gtk_notebook_get_nth_page (gnotebook, i);
+		gtk_notebook_set_tab_detachable (gnotebook, tab_widget_temp, num_pages > 1 );
+		//g_object_unref( tab_widget_temp ); // NECCESSARY??? ==> NO!!!
+	}
+    // print detachable state	
+	for( gint i = 0; i < num_pages; i++ )
+	{
+		GtkWidget *tab_widget_temp = gtk_notebook_get_nth_page (gnotebook, i);
+		printf( ">> [nemo_notebook_insert_page] >> Detachable: %i\n", gtk_notebook_get_tab_detachable (gnotebook, tab_widget_temp) );
+	}
+
+	printf(">> [nemo_notebook_insert_page] LEAVE\n");
 
 	return position;
 }
@@ -421,6 +441,8 @@ nemo_notebook_add_tab (NemoNotebook *notebook,
 {
 	GtkNotebook *gnotebook = GTK_NOTEBOOK (notebook);
 	GtkWidget *tab_label;
+
+	printf(">> [nemo_notebook_add_tab] ENTER\n");
 
 	g_return_val_if_fail (NEMO_IS_NOTEBOOK (notebook), -1);
 	g_return_val_if_fail (NEMO_IS_WINDOW_SLOT (slot), -1);
@@ -452,6 +474,8 @@ nemo_notebook_add_tab (NemoNotebook *notebook,
 
 	}
 
+	printf(">> [nemo_notebook_add_tab] LEAVE\n");
+
 	return position;
 }
 
@@ -459,6 +483,8 @@ static void
 nemo_notebook_remove (GtkContainer *container,
 			  GtkWidget *tab_widget)
 {
+	printf(">> [nemo_notebook_remove] ENTER\n");
+
 	GtkNotebook *gnotebook = GTK_NOTEBOOK (container);
 	GTK_CONTAINER_CLASS (nemo_notebook_parent_class)->remove (container, tab_widget);
 
@@ -466,6 +492,24 @@ nemo_notebook_remove (GtkContainer *container,
 				    gtk_notebook_get_n_pages (gnotebook) > 1 || 
 					g_settings_get_boolean (nemo_preferences, NEMO_PREFERENCES_SHOW_TAB_AREA ));
 
+    // set detachable state depending on number of slots (a single slot
+	// should stay where it is)
+	gint num_pages = gtk_notebook_get_n_pages (gnotebook);
+	printf(">> [nemo_notebook_remove] num_pages = %i\n", num_pages);
+	for( gint i = 0; i < num_pages; i++ )
+	{
+		GtkWidget *tab_widget_temp = gtk_notebook_get_nth_page (gnotebook, i);
+		gtk_notebook_set_tab_detachable (gnotebook, tab_widget_temp, num_pages > 1 );
+		//g_object_unref( tab_widget_temp ); // NECCESSARY??? ==> NO!!!
+	}
+    // print detachable state	
+	for( gint i = 0; i < num_pages; i++ )
+	{
+		GtkWidget *tab_widget_temp = gtk_notebook_get_nth_page (gnotebook, i);
+		printf( ">> [nemo_notebook_remove] >> Detachable: %i\n", gtk_notebook_get_tab_detachable (gnotebook, tab_widget_temp) );
+	}
+
+	printf(">> [nemo_notebook_remove] LEAVE\n");
 }
 
 void
